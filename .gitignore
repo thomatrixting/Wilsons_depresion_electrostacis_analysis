@@ -1,7 +1,7 @@
 # Datos pesados (FITS): se regeneran con los notebooks 01-03
-data/raw/*/
+data/raw/
 data/interim/
-data/processed/*/
+data/processed/
 # Se versionan: data/catalog/, data/raw/windows.csv, data/processed/*.csv y sumary.html
 __pycache__/
 .ipynb_checkpoints/
