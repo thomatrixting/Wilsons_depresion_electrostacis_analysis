@@ -1,0 +1,23 @@
+# Probado con Python 3.14 (entorno conda `sun-spots`). Instalar con:
+#   pip install -r requirements.txt
+
+# Cálculo y tablas
+numpy>=2.0
+scipy>=1.13
+pandas>=2.2
+
+# Física solar: mapas, coordenadas, descarga (Fido/JSOC) y reproyección a la malla CEA
+astropy>=6.0
+sunpy[net,map]>=6.0
+drms>=0.7
+parfive>=2.0
+reproject>=0.13
+
+# Figuras y reporte HTML
+matplotlib>=3.8
+
+# Notebooks
+jupyter
+ipykernel
+nbformat>=5.9
+nbconvert>=7.0
