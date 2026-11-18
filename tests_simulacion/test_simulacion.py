@@ -9,6 +9,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+from src import atmosferas as at
 from src import autosimilar as au
 from src import extrapolacion as ex
 from src import modelo_wilson as mw
@@ -244,6 +245,44 @@ def test_calibracion_ida_y_vuelta():
         z_div = mw.Z_W(B0, R, L, n, Hp=Hp)
         cal = mw.calibrar_n(B0, R, L, z_div, z_press)
         assert np.isclose(cal['Hp'], Hp) and np.isclose(cal['n'], n)
+
+
+def test_tablas_hidrostaticas():
+    # Control de la transcripción de Maltby: dP/dh = -ρ g en cada intervalo de las tablas.
+    # La umbra tiene pasos de ~9 km con h redondeada al km: hasta 9 % por intervalo, que se
+    # cancela al sumar (por eso también se comprueba el acumulado).
+    for tabla, tol in ((at.SOL_TRANQUILO, 0.03), (at.UMBRA_M, 0.10)):
+        h, P, rho = tabla[:, 0] * 1e5, tabla[:, 3], tabla[:, 4]
+        peso = 0.5 * (rho[1:] + rho[:-1]) * at.G_SOL * (h[:-1] - h[1:])
+        assert np.all(np.abs((P[1:] - P[:-1]) / peso - 1) < tol)
+        assert abs((P[-1] - P[0]) / peso.sum() - 1) < 0.005
+    assert np.all(np.diff(at.SOL_TRANQUILO[:, 1]) > 0) and np.all(np.diff(at.UMBRA_M[:, 2]) > 0)
+
+
+def test_sol_tranquilo_empalme():
+    assert np.isclose(at.p_sol_tranquilo(0.0), 1.211e4, rtol=1e-6)
+    assert np.isclose(at.p_sol_tranquilo(-100.0), 2.041e4, rtol=1e-6)
+    assert 50 < at.corrimiento_modelo_S() < 100
+    h = np.linspace(-1500, 190, 400)
+    p = at.p_sol_tranquilo(h)
+    assert np.all(np.diff(p) < 0) and np.allclose(at.h_sol_tranquilo(p), h, atol=1e-6)
+    # Sin salto de pendiente en el empalme: H_p continuo dentro del 15 %.
+    assert np.isclose(at.escala_de_presion(-95.0), at.escala_de_presion(-110.0), rtol=0.15)
+    assert at.escala_de_presion(-600.0) > at.escala_de_presion(0.0)
+
+
+def test_nivel_2():
+    dp = np.array([0.0, 1e4, 3e4, 8e4])
+    Z = at.Z_W_maltby(dp)
+    assert np.all(np.diff(Z) > 0) and 100 < Z[0] < 250
+    assert np.allclose(at.delta_p_desde_Z(Z), dp, atol=1e-6)
+    assert at.Z_W_maltby(2e4, 'E') > at.Z_W_maltby(2e4, 'M') > at.Z_W_maltby(2e4, 'L')
+    # z_press de Löptien (presión sola) sin ningún parámetro libre: dentro de 60 km.
+    for B, z_press in ((2349, 381), (2093, 291), (2090, 313), (2287, 326), (2181, 346)):
+        assert abs(mw.Z_W(B, conversor=at.Z_W_maltby) - z_press) < 60
+    assert np.isnan(at.Z_W_maltby(1e9))
+    cal = mw.calibrar_n(B0, R, L, mw.Z_W(B0, R, L, -1.0, conversor=at.Z_W_maltby), inversa=at.delta_p_desde_Z)
+    assert np.isclose(cal['n'], -1.0)
 
 
 if __name__ == '__main__':

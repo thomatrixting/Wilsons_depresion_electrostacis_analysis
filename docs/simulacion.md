@@ -11,8 +11,9 @@ Esta parte toma el campo $\mathbf B=(B_x,B_y,B_z)$ que HMI da en **una** capa, l
 | `src/perfiles.py` | Lee `data/processed/<id>/cea/`, promedia en anillos y ajusta $B_0$, $R$, $L_{inc}$, $L_{div}$ | S4 → S5 |
 | `src/modelo_wilson.py` | $Z_W$ con presión sola y con curvatura, tabla de descomposición, calibración de $n$ | S5, S6 |
 | `notebooks/04_simulacion.ipynb` | Todo lo anterior con figuras; la sección 6 corre sobre los datos reales | — |
+| `src/atmosferas.py` | Nivel 2: umbra de Maltby (E, M, L) y Sol tranquilo (Maltby + Modelo S); `Z_W_maltby`, `delta_p_desde_Z` | S3 |
 | `src/figuras_simulacion.py` | Figura de perfiles y ajustes por mancha, y figura de resumen | S4/S5 |
-| `tests_simulacion/test_simulacion.py` | 25 pruebas (`python tests_simulacion/test_simulacion.py`) | — |
+| `tests_simulacion/test_simulacion.py` | 28 pruebas (`python tests_simulacion/test_simulacion.py`) | — |
 
 ## 1. Deducciones de S2
 
@@ -88,7 +89,7 @@ Con $n=-1$ los $R/L$ de la última columna ponen el cero del campo del eje a $L\
 
 - [x] Correr la sección 6 del notebook 04 con los datos procesados (escribe `data/processed/modelo_zw.csv`). Hecho el 2026-11-17, ver sección 7.
 - [x] Revisar en datos reales: ¿$\tan\gamma$ es lineal en la umbra? ¿$L_{inc}\approx L_{div}$? ¿El perfil $B_z(r)$ es gaussiano o más plano en la umbra? Sí, sí y casi gaussiano (sección 7).
-- [ ] Conectar `atmosferas.py` (S3, nivel 2) vía `conversor=` en `modelo_wilson`.
+- [x] Conectar `atmosferas.py` (S3, nivel 2) vía `conversor=` en `modelo_wilson` (sección 8).
 - [ ] Decidir con el grupo qué $B$ entra en la presión: $B_0$ del eje (lo que pide la deducción) o el promedio umbral (lo que tabula Löptien).
 - [x] Barras de error de $Z_W$: propagar la dispersión entre frames de $B_0$, $R$, $L$ (sección 7.5).
 
@@ -148,7 +149,7 @@ Con el $R/L$ medido, $|C|/P_{mag}=(R/L)^2\,|n+2|/8|n|$ vale 0.24–0.52 para $n=
 
 - **$n$ calibrado = −0.33 (−0.46 a −0.29), con $H_p$ = 350 km.** En esa familia el campo del eje se anula en $z=|n|L\approx1$ Mm sobre la fotosfera: no es creíble.
 - Con una caída lineal ($n=-1$), que ya es el límite razonable, la curvatura del modelo explica solo el **17–30 %** de lo que hace falta para pasar de $z_{press}$ a $z_{div}$.
-- Conclusión provisional: con la atmósfera de juguete, el modelo autosimilar gaussiano con el $R/L$ que mide HMI **no alcanza** para explicar $z_{div}-z_{press}$. O la curvatura real es mayor que la del modelo (la penumbra, donde el campo se inclina mucho más, queda fuera), o el nivel 1 exagera lo que hace falta (sección 3: con $p_0=4\times10^4$ Pa baja a 0.85–1.4). Hay que repetirlo con Maltby antes de afirmarlo.
+- Conclusión provisional: con la atmósfera de juguete, el modelo autosimilar gaussiano con el $R/L$ que mide HMI **no alcanza** para explicar $z_{div}-z_{press}$. O la curvatura real es mayor que la del modelo (la penumbra, donde el campo se inclina mucho más, queda fuera), o el nivel 1 exagera lo que hace falta (sección 3: con $p_0=4\times10^4$ Pa baja a 0.85–1.4). Repetido con Maltby en la sección 8: la conclusión se mantiene y se refuerza.
 - Con $H_p$ = 150 km y $B_0$ de HMI, la presión sola da $Z_W$ = 117–178 km y la curvatura con $n=-1$ suma 19–46 km. Con la calibración ($n=-0.33$, $H_p$ = 350 km) el modelo predice 590–770 km para las cinco manchas del catálogo propio (columna `Z_pred_curvatura`); es una extrapolación de una calibración poco creíble, no una predicción.
 - El $B_0$ del ajuste (1886–2226 G en las de Löptien) queda 5–10 % por debajo del $\langle B\rangle$ umbral de Löptien (2090–2349 G, Hinode), aunque $B_0$ es el máximo y $\langle B\rangle$ un promedio: HMI ve menos campo en la umbra que Hinode. Afecta la pregunta de qué $B$ entra en la presión.
 
@@ -188,3 +189,58 @@ El error estadístico es de 2–11 km (2–8 %), y el de $n$ de 0.01–0.02. Es 
 
 - `src/cleaning.py` (de Thomas) necesitó un cambio para correr: `conf_disambig` y `bitmap` de SHARP (enteros con `BZERO=-128`, `BLANK=0`) no se pueden leer con astropy ≥ 7.2 ("cannot convert float NaN to integer"). Se agregó `_mapa_entero`, que los lee sin escalar y aplica `BZERO` a mano. Hay que avisarle.
 - 02 y 03 se corrieron llamando `cleaning.clean_spot` y `analysis.analyse_spot` en paralelo (un proceso por mancha, ~3 min cada paso) con los parámetros de la celda 2 del notebook 03; los notebooks 02 y 03 no se modificaron.
+
+## 8. Nivel 2: atmósferas de Maltby y Modelo S (2026-11-17)
+
+`src/atmosferas.py` reemplaza la atmósfera isoterma. Ya no hay $H_p$ ni $p_0$ que calibrar.
+
+**Método (el "método de presión" de Löptien et al. 2018, ec. 7).** HMI ve la umbra en su $\tau=1$. Si esa superficie está a una profundidad $Z_W$ bajo el $\tau=1$ del Sol tranquilo, el balance horizontal a esa altura es
+
+$$p_{qs}(-Z_W)=p_u(\tau=1)+\frac{B^2}{2\mu_0}+C .$$
+
+- **Umbra:** núcleos umbrales E, M y L de Maltby et al. (1986, tablas 7–9). En $\tau_{0.5}=1$: $p_u$ = 3.06, 2.69 y 2.37 $\times10^4$ Pa. Se usa M; E y L dan la banda de incertidumbre.
+- **Sol tranquilo:** modelo fotosférico de referencia de Maltby (tabla 11; $p=1.21\times10^4$ Pa en $\tau_{0.5}=1$), que solo llega a $-100$ km, continuado con el Modelo S (Christensen-Dalsgaard et al. 1996; `src/datos/modelo_S_superficie.csv`) subido 75 km para que la presión empalme. $H_p$ crece con la profundidad: 158 km en la superficie, 293 km a $-300$ km, 381 km a $-700$ km.
+- Con $\Delta p=0$ sale $Z_W$ = 167 km, no cero: la umbra es más transparente y su $\tau=1$ está más abajo aun sin campo.
+- Las tablas se transcribieron del artículo escaneado; la prueba `test_tablas_hidrostaticas` comprueba $dP/dh=-\rho g$ en cada intervalo (acumulado dentro del 0.1 %).
+
+### 8.1 Comparación con Löptien
+
+Con el $\langle B\rangle$ de Löptien en la presión y $R/L$ de HMI:
+
+| NOAA | Fecha | $z_{press}$ Löptien | $Z_W$ presión (nivel 2) | $z_{div}$ | $Z_W$ con curvatura, $n=-1$ | Fracción explicada | $C_{req}/P_{mag}$ (E–L) | $n$ calibrado |
+|---|---|---|---|---|---|---|---|---|
+| 11106 | 2010-09-16 | 381 | 334 | 636 | 389 | 18 % | 3.26 (3.09–3.41) | −0.24 ± 0.01 |
+| 11117 | 2010-10-27 | 291 | 305 | 561 | 352 | 19 % | 3.07 (2.86–3.25) | −0.25 ± 0.02 |
+| 11117 | 2010-10-28 | 313 | 304 | 625 | 348 | 14 % | 4.18 (3.97–4.36) | −0.18 ± 0.00 |
+| 11363 | 2011-12-06 | 326 | 326 | 524 | 376 | 25 % | 1.94 (1.76–2.09) | −0.34 ± 0.01 |
+| 11536 | 2012-07-31 | 346 | 314 | 577 | 343 | 11 % | 2.99 (2.79–3.15) | −0.15 ± 0.01 |
+
+Alturas en km. "Fracción explicada" = (Z con curvatura − Z presión)/($z_{div}$ − Z presión).
+
+1. **El nivel 2 reproduce el $z_{press}$ de Löptien sin ningún parámetro libre**: diferencia media de −15 km, máxima de 47 km (él usa la presión del gas de su inversión y otro Sol tranquilo; su error es de ~100 km). La atmósfera queda validada.
+2. **La curvatura que haría falta es mayor que con la isoterma**: $C_{req}/P_{mag}$ = 1.9–4.2 (antes 1.3–2.4), porque la presión del Sol tranquilo crece cada vez más despacio en escala logarítmica con la profundidad. Cambiar la umbra de E a L lo mueve ±0.2.
+3. **El modelo autosimilar gaussiano no alcanza.** Con caída lineal ($n=-1$) da $C/P_{mag}$ = 0.24–0.44 y sube $Z_W$ entre 28 y 55 km, cuando hacen falta 198–321 km: explica el **11–25 %**. El $n$ calibrado es −0.24 (−0.34 a −0.15): el campo del eje se anularía a $\approx0.7$ Mm sobre la fotosfera. Ya no se le puede echar la culpa a la atmósfera de juguete.
+4. Lo que queda por explicar es de 150–280 km, 1.5–3 veces el error de 100 km que Löptien da para $z_{div}$. Candidatos: (a) la curvatura real está en la penumbra, donde el campo se inclina 2–3 veces más que el modelo (sección 7.1) y el modelo gaussiano no la describe; (b) $z_{div}$ es un promedio umbral con su propio sesgo; (c) derivadas sobre $\tau=1$ en vez de un plano (sección 5).
+
+### 8.2 Predicción para las 10 ventanas con el campo de HMI
+
+Con $B_0$, $R$ y $L$ de cada mancha (mediana ± dispersión entre frames); en la presión sola, el intervalo es el de las umbras L–E.
+
+| Mancha | $B_0$ [G] | $Z_W$ presión [km] | L–E [km] | $Z_W$ con curvatura $n=-1$ [km] | Aporte de la curvatura [km] | $Z_W$ con $n=\infty$ [km] |
+|---|---|---|---|---|---|---|
+| 11106 (2010-09-16) | 2226 | 320 ± 3 | 299–343 | 369 ± 4 | 50 ± 2 | 263 |
+| 11117 (2010-10-27) | 1886 | 282 ± 7 | 259–308 | 323 ± 7 | 41 ± 2 | 235 |
+| 11117 (2010-10-28) | 1978 | 292 ± 4 | 270–317 | 333 ± 5 | 40 ± 1 | 246 |
+| 11363 (2011-12-06) | 2085 | 304 ± 4 | 282–328 | 347 ± 4 | 44 ± 1 | 254 |
+| 11536 (2012-07-31) | 2002 | 295 ± 12 | 272–319 | 320 ± 14 | 25 ± 3 | 268 |
+| 12526 | 2568 | 359 ± 5 | 340–380 | 431 ± 7 | 72 ± 3 | 271 |
+| 12574 | 2072 | 302 ± 6 | 280–326 | 348 ± 6 | 45 ± 3 | 250 |
+| 12600 | 2417 | 341 ± 4 | 322–364 | 405 ± 4 | 64 ± 3 | 266 |
+| 12664 | 2389 | 338 ± 6 | 318–360 | 397 ± 9 | 59 ± 3 | 266 |
+| 12670 | 2622 | 366 ± 5 | 347–386 | 436 ± 6 | 71 ± 2 | 279 |
+
+- **Resultado del modelo:** $Z_W$ = 280–370 km con presión sola y 320–440 km con curvatura de caída lineal. La curvatura aporta 25–72 km (8–17 % del total), o resta 26–88 km si la caída es exponencial.
+- Jerarquía de incertidumbres: frames (3–14 km) < modelo de umbra E–L (±22 km) < clausura $n$ (−90 a +70 km) < desacuerdo con $z_{div}$ (150–280 km).
+- La columna `Z_pred_curvatura` de `modelo_zw_nivel2.csv` usa el $n=-0.24$ calibrado (455–734 km); se deja como referencia, no como predicción, porque ese $n$ no es físico.
+
+Figura: `docs/figuras/04_ZW_nivel2.png`. Tabla: `resultados/modelo_zw_nivel2.csv`. Las secciones 3 y 7.2 (nivel 1) quedan como antecedente; los números que valen son los de esta sección.

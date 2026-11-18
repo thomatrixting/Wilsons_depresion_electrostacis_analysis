@@ -66,7 +66,8 @@ def descomponer(B0, R, L, n_lista=(-1, -2, np.inf), conversor=Z_W_isoterma, **kw
         tag = 'exp' if np.isinf(n) else f'{n:g}'
         dp = pm + c
         # Δp <= -p0 no tiene solución en el nivel 1: la curvatura "sobra" (p_eje > p_ext).
-        z = float(conversor(dp, **kw)) if dp > -kw.get('p0', P0_PA) else np.nan
+        nivel1 = conversor is Z_W_isoterma
+        z = float(conversor(dp, **kw)) if (not nivel1 or dp > -kw.get('p0', P0_PA)) else np.nan
         out[f'C[n={tag}]'] = c
         out[f'C/P_mag[n={tag}]'] = c / pm
         out[f'Z[n={tag}]'] = z
@@ -84,27 +85,36 @@ def calibrar_Hp(B, z_press, p0=P0_PA):
     return np.asarray(z_press, dtype=float) / np.log1p(presion_magnetica(B) / p0)
 
 
-def C_requerida(B, z_div, z_press=None, Hp=None, p0=P0_PA):
-    """La curvatura C [Pa] que hace falta para pasar de z_press a z_div (nivel 1).
+def C_requerida(B, z_div, z_press=None, Hp=None, p0=P0_PA, inversa=None):
+    """La curvatura C [Pa] que hace falta para pasar de z_press a z_div.
 
-    Si no se da Hp se calibra con `calibrar_Hp` (para eso hace falta z_press).
+    Nivel 1 (por defecto): si no se da Hp se calibra con `calibrar_Hp` (para eso hace
+    falta z_press). Nivel 2: `inversa` es una función Z[km] → Δp[Pa]
+    (`atmosferas.delta_p_desde_Z`); no hay nada que calibrar y z_press no se usa.
     """
+    if inversa is not None:
+        return np.asarray(inversa(z_div)) - presion_magnetica(B)
     if Hp is None:
         Hp = calibrar_Hp(B, z_press, p0)
     return delta_p_desde_Z(z_div, Hp, p0) - presion_magnetica(B)
 
 
-def calibrar_n(B, R, L, z_div, z_press=None, Hp=None, p0=P0_PA):
+def calibrar_n(B, R, L, z_div, z_press=None, Hp=None, p0=P0_PA, inversa=None):
     """El n de la familia vertical que reproduce z_div (S6, punto 2).
+
+    Con `inversa` (nivel 2, ver `C_requerida`) no se calibra Hp y sale NaN en esa clave.
 
     Returns
     -------
     dict con Hp, C [Pa], C/P_mag, g = C/[(R/L)² P_mag] y n.  -2 < n < 0 quiere decir que el
     campo cae con la altura "más recto que √B0 lineal" (n = -1 es caída lineal).
     """
-    if Hp is None:
-        Hp = calibrar_Hp(B, z_press, p0)
-    c = C_requerida(B, z_div, Hp=Hp, p0=p0)
+    if inversa is not None:
+        Hp, c = np.nan, C_requerida(B, z_div, inversa=inversa)
+    else:
+        if Hp is None:
+            Hp = calibrar_Hp(B, z_press, p0)
+        c = C_requerida(B, z_div, Hp=Hp, p0=p0)
     pm = presion_magnetica(B)
     return dict(Hp=float(Hp), C=float(c), C_sobre_Pmag=float(c / pm),
                 g=float(c / pm / (R / L) ** 2), n=float(autosimilar.n_desde_C(c, B, R, L)))
