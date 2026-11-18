@@ -90,7 +90,7 @@ Con $n=-1$ los $R/L$ de la última columna ponen el cero del campo del eje a $L\
 - [x] Revisar en datos reales: ¿$\tan\gamma$ es lineal en la umbra? ¿$L_{inc}\approx L_{div}$? ¿El perfil $B_z(r)$ es gaussiano o más plano en la umbra? Sí, sí y casi gaussiano (sección 7).
 - [ ] Conectar `atmosferas.py` (S3, nivel 2) vía `conversor=` en `modelo_wilson`.
 - [ ] Decidir con el grupo qué $B$ entra en la presión: $B_0$ del eje (lo que pide la deducción) o el promedio umbral (lo que tabula Löptien).
-- [ ] Barras de error de $Z_W$: propagar la dispersión entre frames de $B_0$, $R$, $L$.
+- [x] Barras de error de $Z_W$: propagar la dispersión entre frames de $B_0$, $R$, $L$ (sección 7.5).
 
 ## 5. Supuestos
 
@@ -164,6 +164,25 @@ Sección 8 del notebook: los métodos de la sección 2 aplicados al frame centra
 | Autosimilar desde el mapa, $n=\infty$ | −0.30 a −0.56 (cerrada: −0.23 a −0.54) |
 
 Sale lo mismo que con la mancha sintética: el resultado lo decide la clausura, no el mapa. La expansión del mapa real coincide con la fórmula gaussiana dentro de ~10 %. El $\mathbf B_h$ que predice el modelo en $z=0$ es 0.84–0.94 del observado dentro de la umbra (0.42 en 11536) y 0.58–0.79 en la penumbra.
+
+### 7.5 Barras de error (dispersión entre frames)
+
+El modelo se evalúa frame por frame con su $B_0$, $R$ y $L_{inc}$ y se toma la desviación estándar (columnas `*_std` de `modelo_zw.csv`). Nivel 1 con $H_p$ = 150 km, $p_0=1.2\times10^4$ Pa.
+
+| Mancha | $R/L$ | $Z_W$ presión [km] | $Z_W$ con curvatura, $n=-1$ [km] | Aporte de la curvatura [km] | $n$ calibrado |
+|---|---|---|---|---|---|
+| 11106 (2010-09-16) | 1.86 ± 0.03 | 146 ± 3 | 182 ± 3 | 35.9 ± 1.1 | −0.44 ± 0.01 |
+| 11117 (2010-10-27) | 1.87 ± 0.07 | 117 ± 6 | 149 ± 5 | 31.8 ± 1.5 | −0.33 ± 0.02 |
+| 11117 (2010-10-28) | 1.80 ± 0.02 | 125 ± 3 | 156 ± 3 | 30.9 ± 0.8 | −0.29 ± 0.01 |
+| 11363 (2011-12-06) | 1.79 ± 0.03 | 134 ± 3 | 166 ± 3 | 31.8 ± 0.7 | −0.46 ± 0.01 |
+| 11536 (2012-07-31) | 1.39 ± 0.06 | 127 ± 10 | 146 ± 11 | 19.3 ± 1.9 | −0.29 ± 0.02 |
+| 12526 | 2.04 ± 0.03 | 174 ± 3 | 220 ± 4 | 45.8 ± 1.3 | — |
+| 12574 | 1.84 ± 0.08 | 133 ± 5 | 166 ± 4 | 33.4 ± 2.1 | — |
+| 12600 | 1.99 ± 0.06 | 162 ± 3 | 204 ± 2 | 42.4 ± 1.9 | — |
+| 12664 | 1.90 ± 0.05 | 159 ± 4 | 198 ± 5 | 38.8 ± 1.9 | — |
+| 12670 | 2.00 ± 0.03 | 178 ± 3 | 223 ± 3 | 44.7 ± 0.9 | — |
+
+El error estadístico es de 2–11 km (2–8 %), y el de $n$ de 0.01–0.02. Es mucho menor que el sistemático: cambiar $H_p$ de 150 a 350 km multiplica $Z_W$ por 2.3, y la diferencia entre fechas del $n$ calibrado (−0.29 a −0.46) es diez veces su error por frame. La variación temporal de la mancha no es lo que limita el resultado; lo limita la atmósfera (Maltby) y la clausura. Con la calibración ($n=-0.33$, $H_p$ = 350 km) las predicciones para el catálogo propio son 593–768 km con error por frame de 8–18 km, que no incluye el error de $n$ ni de la atmósfera.
 
 ### 7.4 Notas de la corrida
 
