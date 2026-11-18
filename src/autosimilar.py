@@ -16,7 +16,9 @@ y con eso ∇·B = 0 exactamente. De ahí salen las dos cosas que usa el proyect
 
       C = (1/μ0) ∫ B_z ∂_z B_r dr = -(R²/μ0) B0^(3/2) (d²√B0/dz²) ∫ ζ f² dζ
 
-C depende de la SEGUNDA derivada de B0(z), que HMI no mide. Se parametriza con la familia
+Dentro de este modelo C depende de la SEGUNDA derivada de B0(z), que HMI no mide. (En
+general, C = -B0²/2μ0 + ∫ B_z J_φ dr: lo que una sola capa no fija es la corriente
+azimutal J_φ.) Se parametriza con la familia
 
     B0(z) = B0 (1 + z/(nL))^(-n)        (n → ∞: B0 exp(-z/L);  n = -1: caída lineal)
 
@@ -101,7 +103,7 @@ def B(r, z, B0, R, L, n=np.inf):
 def divergencia(r, z, B0, R, L, n=np.inf, h=1e-4):
     """∇·B del modelo por diferencias centradas (paso relativo h·R). Debe dar ~0.
 
-    Es la comprobación numérica que pide S2: (1/r) ∂_r(r B_r) + ∂_z B_z.
+    Es la comprobación numérica que pide S2: (1/r) ∂_r(r B_r) + ∂_z B_z. Requiere r > 0.
     """
     r = np.asarray(r, dtype=float)
     d = h * R

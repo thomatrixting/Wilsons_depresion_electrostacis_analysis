@@ -117,7 +117,7 @@ def ajustar_mancha(Bx, By, Bz, dx, mascara=None, centro=None, r_ajuste=None, r_u
     Br_map = extrapolacion.componente_radial(Bx, By, dx, centro)
     r, bz, sbz, cnt = extrapolacion.promedio_azimutal(pol * Bz, dx, centro, r_ajuste, mascara=buenos)
     _, br, sbr, _ = extrapolacion.promedio_azimutal(pol * Br_map, dx, centro, r_ajuste, mascara=buenos)
-    ok = cnt > 0
+    ok = (cnt > 0) & np.isfinite(r)
     r, bz, sbz, br, sbr, cnt = (a[ok] for a in (r, bz, sbz, br, sbr, cnt))
 
     # 1) Gaussiana: B0 y R.
@@ -139,10 +139,14 @@ def ajustar_mancha(Bx, By, Bz, dx, mascara=None, centro=None, r_ajuste=None, r_u
     X, Y = extrapolacion.rejilla(Bz.shape, dx, centro)
     rr = np.hypot(X, Y)
     nucleo = (rr <= max(r_umbra / 3, 2 * dx)) & buenos
-    modelo = pol * sz[nucleo] * (1 - (rr[nucleo] / R) ** 2)
+    # El factor se aplica ANTES de suavizar: así modelo y divergencia pasan por el mismo filtro.
+    crudo = pol * np.nan_to_num(Bz) * (1 - (rr / R) ** 2)
+    modelo = (ndimage.gaussian_filter(crudo, suavizado_div_px) if suavizado_div_px else crudo)[nucleo]
     L_div = float(np.sum(modelo * modelo) / np.sum(modelo * div[nucleo]))   # mínimos cuadrados de div = modelo/L
     res = div[nucleo] - modelo / L_div
-    eL_div = float(L_div ** 2 * np.sqrt(np.sum(res ** 2) / max(nucleo.sum() - 1, 1) / np.sum(modelo ** 2)))
+    # Los píxeles suavizados están correlacionados: ~4πσ² px por dato independiente.
+    corr = max(4 * np.pi * suavizado_div_px ** 2, 1.0)
+    eL_div = float(L_div ** 2 * np.sqrt(corr * np.sum(res ** 2) / max(nucleo.sum() - 1, 1) / np.sum(modelo ** 2)))
 
     return dict(B0=float(B0), err_B0=float(eB0), R=float(R), err_R=float(eR),
                 L_inc=float(L_inc), err_L_inc=float(eL_inc), L_div=L_div, err_L_div=eL_div,

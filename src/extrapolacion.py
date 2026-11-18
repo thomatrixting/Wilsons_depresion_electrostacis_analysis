@@ -8,8 +8,9 @@ imponerla y deja ver qué fija cada una y qué no:
 1. `capas_iguales`            copia el mapa en nz capas. ∇·B = ∇_h·B_h ≠ 0: punto de partida.
 2. `integrar_gauss`           deja B_h como esté y reconstruye B_z(z) = B_z(0) - ∫ ∇_h·B_h dz.
                               Respeta el mapa observado en z = 0 y da ∇·B = 0. Con capas
-                              iguales de B_h es la extensión de Taylor de orden 1: fija
-                              ∂_z B_z pero deja ∂_z B_r = 0, o sea C = 0.
+                              iguales de B_h fija ∂_z B_z (orden 1 en B_z) pero ELIGE
+                              ∂_z B_h = 0 (orden 0 en B_h), y por eso da C = 0. No es un
+                              resultado: es la hipótesis J_φ = -∂_r B_z/μ0.
 3. `limpiar_divergencia`      proyección de Helmholtz (FFT): resta ∇φ con ∇²φ = ∇·B. Da
                               ∇·B = 0 pero CAMBIA el mapa observado (le quita a B_h su
                               parte divergente, que es justo la señal ∂_z B_z). Sirve de
@@ -38,6 +39,16 @@ from scipy import ndimage
 
 from . import autosimilar
 from .autosimilar import GAUSS, MU0
+
+
+def _k(n, d):
+    """Números de onda de la FFT. En tamaños pares el modo de Nyquist se pone en cero: su
+    derivada no está definida (±k_N son el mismo modo) y, si se deja, rompe la simetría
+    hermítica y la parte real pierde la propiedad que se quería imponer."""
+    k = 2 * np.pi * np.fft.fftfreq(n, d)
+    if n % 2 == 0:
+        k[n // 2] = 0.0
+    return k
 
 
 # ── operadores ──────────────────────────────────────────────────────────────
@@ -104,14 +115,14 @@ def limpiar_divergencia(Bx, By, Bz, dx, dz):
     """Proyección al espacio de campos sin divergencia: B' = B - ∇φ, ∇²φ = ∇·B (FFT).
 
     Es la corrección que menos cambia B en norma L2, pero trata la caja como periódica y
-    NO respeta el mapa observado. Con capas iguales solo quita la parte irrotacional de
-    B_h (ver el encabezado). Requiere capas equiespaciadas en z.
+    NO respeta el mapa observado. Si el cubo de partida no cambia con z (capas iguales) solo
+    sobrevive k_z = 0 y la proyección se vuelve 2D: quita la parte irrotacional de B_h, que
+    en una mancha es casi todo B_h. Requiere capas equiespaciadas en z.
     """
     nz, ny, nx = Bx.shape
-    kz, ky, kx = np.meshgrid(2 * np.pi * np.fft.fftfreq(nz, dz), 2 * np.pi * np.fft.fftfreq(ny, dx),
-                             2 * np.pi * np.fft.fftfreq(nx, dx), indexing='ij')
+    kz, ky, kx = np.meshgrid(_k(nz, dz), _k(ny, dx), _k(nx, dx), indexing='ij')
     k2 = kx ** 2 + ky ** 2 + kz ** 2
-    k2[0, 0, 0] = 1.0
+    k2[k2 == 0] = 1.0
     fx, fy, fz = np.fft.fftn(Bx), np.fft.fftn(By), np.fft.fftn(Bz)
     kb = (kx * fx + ky * fy + kz * fz) / k2
     return (np.fft.ifftn(fx - kx * kb).real, np.fft.ifftn(fy - ky * kb).real,
@@ -145,7 +156,8 @@ def campo_potencial(Bz0, dx, z, relleno=0):
     dec = np.exp(-k[None] * z[:, None, None])
     inv = lambda a: np.fft.ifft2(a, axes=(-2, -1)).real
     fz = fb[None] * dec
-    fx, fy = -1j * kx / ks * fz, -1j * ky / ks * fz
+    kxd, kyd = np.meshgrid(_k(nx, dx), _k(ny, dx))     # sin Nyquist, para las derivadas
+    fx, fy = -1j * kxd / ks * fz, -1j * kyd / ks * fz
     out = [inv(fx), inv(fy), inv(fz), inv(-k * fx), inv(-k * fy)]
     if relleno:
         out = [a[:, relleno:-relleno, relleno:-relleno] for a in out]
@@ -198,7 +210,8 @@ def promedio_azimutal(mapa, dx, centro=None, r_max=None, dr=None, mascara=None):
 
     Returns
     -------
-    (r, media, desviación, n_px) con r en el centro de cada anillo.
+    (r, media, desviación, n_px) con r = radio medio de los píxeles de cada anillo (NaN
+    en los anillos vacíos).
     """
     X, Y = rejilla(mapa.shape, dx, centro)
     r = np.hypot(X, Y)
@@ -211,13 +224,15 @@ def promedio_azimutal(mapa, dx, centro=None, r_max=None, dr=None, mascara=None):
     if mascara is not None:
         ok &= mascara
     nbin = max(int(np.floor(r_max / dr)), 1)
-    idx = np.minimum((r[ok] / dr).astype(int), nbin - 1)
+    ok &= r < nbin * dr
+    idx = (r[ok] / dr).astype(int)
     v = mapa[ok]
     cnt = np.bincount(idx, minlength=nbin)
     with np.errstate(invalid='ignore', divide='ignore'):
         med = np.bincount(idx, v, minlength=nbin) / cnt
         var = np.bincount(idx, v * v, minlength=nbin) / cnt - med ** 2
-    return (np.arange(nbin) + 0.5) * dr, med, np.sqrt(np.clip(var, 0, None)), cnt
+        rmed = np.bincount(idx, r[ok], minlength=nbin) / cnt
+    return rmed, med, np.sqrt(np.clip(var, 0, None)), cnt
 
 
 def integral_curvatura(Bx, By, Bz, dx, z=None, centro=None, iz=0, r_max=None,
@@ -232,6 +247,8 @@ def integral_curvatura(Bx, By, Bz, dx, z=None, centro=None, iz=0, r_max=None,
     (C, r, integrando): C en Pa, y el integrando ⟨B_z ∂_z B_r⟩/μ0 [Pa/Mm] en cada radio.
     """
     if dBx_dz is None:
+        if z is None or len(np.atleast_1d(z)) < 3:
+            raise ValueError('hacen falta el vector z (>= 3 capas) o las derivadas dBx_dz, dBy_dz')
         dBr = np.gradient(componente_radial(Bx, By, dx, centro), z, axis=0, edge_order=2)[iz]
     else:
         dBr = componente_radial(dBx_dz[iz], dBy_dz[iz], dx, centro)

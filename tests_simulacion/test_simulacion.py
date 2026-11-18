@@ -28,7 +28,7 @@ def test_divergencia_cero():
     for n in NS:
         for z in (-0.5, 0.0, 0.7):
             d = au.divergencia(r, z, B0, R, L, n)
-            assert np.max(np.abs(d)) < 1e-4 * B0 / L, (n, z, np.max(np.abs(d)))
+            assert np.max(np.abs(d)) < 1e-6 * B0 / L, (n, z, np.max(np.abs(d)))
 
 
 def test_derivadas_en_z0():
@@ -117,7 +117,7 @@ def test_limpiar_divergencia_cambia_el_mapa():
     dx = 0.36
     Bx, By, Bz = ex.capas_iguales(Bx0, By0, Bz0, 4)
     Cx, Cy, Cz = ex.limpiar_divergencia(Bx, By, Bz, dx, 0.2)
-    k = 2 * np.pi * np.fft.fftfreq(128, dx)
+    k = ex._k(128, dx)
     div_esp = 1j * k[None, :] * np.fft.fft2(Cx[0]) + 1j * k[:, None] * np.fft.fft2(Cy[0])
     assert np.max(np.abs(np.fft.ifft2(div_esp))) < 1e-6 * B0 / L   # sin divergencia (espectral)
     # ...pero B_h, que era puramente radial (irrotacional), queda destruido: se pierde la señal.
@@ -165,6 +165,26 @@ def test_autosimilar_mapa_no_simetrico():
     Bx, By, Bz = ex.autosimilar_desde_mapa(F, dx, z, L, -1, centro=(70, 85))
     assert np.allclose(Bz[0], F, atol=1e-6 * B0)
     assert np.max(np.abs(ex.divergencia(Bx, By, Bz, dx, z)[1:-1])) < 1e-2 * B0 / L
+
+
+def test_helmholtz_par_con_ruido():
+    # Tamaños pares + ruido: el modo de Nyquist no debe dejar divergencia residual.
+    rng = np.random.default_rng(0)
+    A = [rng.normal(size=(8, 32, 32)) for _ in range(3)]
+    Cx, Cy, Cz = ex.limpiar_divergencia(*A, 0.36, 0.2)
+    kz, ky, kx = np.meshgrid(ex._k(8, 0.2), ex._k(32, 0.36), ex._k(32, 0.36), indexing='ij')
+    div = np.fft.ifftn(1j * (kx * np.fft.fftn(Cx) + ky * np.fft.fftn(Cy) + kz * np.fft.fftn(Cz)))
+    assert np.max(np.abs(div)) < 1e-10
+    D = ex.limpiar_divergencia(Cx, Cy, Cz, 0.36, 0.2)                      # idempotente
+    assert max(np.max(np.abs(a - b)) for a, b in zip(D, (Cx, Cy, Cz))) < 1e-10
+
+
+def test_L_div_manchas_pequenas():
+    # El estimador de L por Gauss no debe sesgarse con el suavizado (manchas chicas).
+    for R_, L_, dx in ((3.0, 1.5, 0.36), (5.0, 2.5, 0.36), (5.0, 10.0, 0.5), (8.0, 4.0, 0.36)):
+        a = pf.ajustar_mancha(*ex.mancha_sintetica(B0, R_, L_, -1, nx=161, dx=dx), dx)
+        assert np.isclose(a['L_div'], L_, rtol=0.03), (R_, L_, a['L_div'])
+        assert np.isclose(a['L_inc'], L_, rtol=0.03), (R_, L_, a['L_inc'])
 
 
 # ── perfiles y ajuste ───────────────────────────────────────────────────────
