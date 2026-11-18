@@ -198,6 +198,13 @@ def test_ajuste_sin_ruido():
         assert np.hypot(a['centro'][0] - 84.3, a['centro'][1] - 77.6) < 0.3
 
 
+def test_diagnostico_forma():
+    Bx0, By0, Bz0 = ex.mancha_sintetica(B0, R, L, -1, nx=161)
+    d = pf.diagnostico_forma(pf.ajustar_mancha(Bx0, By0, Bz0, 0.36))
+    assert np.isclose(d['p_forma'], 2.0, atol=0.02) and d['rms_gauss'] < 0.005
+    assert np.isclose(d['exp_inc'], 1.0, atol=0.02) and d['rms_inc'] < 0.01
+
+
 def test_ajuste_con_ruido_y_mascara():
     Bx0, By0, Bz0 = ex.mancha_sintetica(B0, R, L, -1, nx=161, ruido=80.0, semilla=3)
     X, Y = ex.rejilla((161, 161), 0.36)

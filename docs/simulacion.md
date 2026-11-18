@@ -2,7 +2,7 @@
 
 Responsable: Luis Felipe Ramírez. Rama `simulacion`.
 
-Esta parte toma el campo $\mathbf B=(B_x,B_y,B_z)$ que HMI da en **una** capa, lo extiende a 3D imponiendo $\nabla\cdot\mathbf B=0$, calcula la integral de curvatura $C$ y la convierte en depresión de Wilson. Todo corre sin datos (con una mancha sintética) y queda listo para los FITS de `data/processed/`.
+Esta parte toma el campo $\mathbf B=(B_x,B_y,B_z)$ que HMI da en **una** capa, lo extiende a 3D imponiendo $\nabla\cdot\mathbf B=0$, calcula la integral de curvatura $C$ y la convierte en depresión de Wilson. Corre sin datos (con una mancha sintética) y sobre los FITS de `data/processed/`; los resultados con las 9 manchas reales están en la sección 7.
 
 | Archivo | Qué hace | Sección |
 |---|---|---|
@@ -11,7 +11,8 @@ Esta parte toma el campo $\mathbf B=(B_x,B_y,B_z)$ que HMI da en **una** capa, l
 | `src/perfiles.py` | Lee `data/processed/<id>/cea/`, promedia en anillos y ajusta $B_0$, $R$, $L_{inc}$, $L_{div}$ | S4 → S5 |
 | `src/modelo_wilson.py` | $Z_W$ con presión sola y con curvatura, tabla de descomposición, calibración de $n$ | S5, S6 |
 | `notebooks/04_simulacion.ipynb` | Todo lo anterior con figuras; la sección 6 corre sobre los datos reales | — |
-| `tests_simulacion/test_simulacion.py` | 24 pruebas (`python tests_simulacion/test_simulacion.py`) | — |
+| `src/figuras_simulacion.py` | Figura de perfiles y ajustes por mancha, y figura de resumen | S4/S5 |
+| `tests_simulacion/test_simulacion.py` | 25 pruebas (`python tests_simulacion/test_simulacion.py`) | — |
 
 ## 1. Deducciones de S2
 
@@ -85,8 +86,8 @@ Con $n=-1$ los $R/L$ de la última columna ponen el cero del campo del eje a $L\
 
 ## 4. Pendientes
 
-- [ ] Correr la sección 6 del notebook 04 cuando estén los datos procesados (escribe `data/processed/modelo_zw.csv`).
-- [ ] Revisar en datos reales: ¿$\tan\gamma$ es lineal en la umbra? ¿$L_{inc}\approx L_{div}$? ¿El perfil $B_z(r)$ es gaussiano o más plano en la umbra?
+- [x] Correr la sección 6 del notebook 04 con los datos procesados (escribe `data/processed/modelo_zw.csv`). Hecho el 2026-11-17, ver sección 7.
+- [x] Revisar en datos reales: ¿$\tan\gamma$ es lineal en la umbra? ¿$L_{inc}\approx L_{div}$? ¿El perfil $B_z(r)$ es gaussiano o más plano en la umbra? Sí, sí y casi gaussiano (sección 7).
 - [ ] Conectar `atmosferas.py` (S3, nivel 2) vía `conversor=` en `modelo_wilson`.
 - [ ] Decidir con el grupo qué $B$ entra en la presión: $B_0$ del eje (lo que pide la deducción) o el promedio umbral (lo que tabula Löptien).
 - [ ] Barras de error de $Z_W$: propagar la dispersión entre frames de $B_0$, $R$, $L$.
@@ -102,3 +103,69 @@ Un revisor aparte rehízo las deducciones con sympy y probó el código con otro
 - **Confirmado:** $B_r$, $\tan\gamma$, $C$ general y la fórmula con $n$, todos los signos; potencial $\Rightarrow C=-P_{mag}$; `autosimilar_desde_mapa` sin divergencia para un mapa arbitrario; `integral_curvatura` dentro del 1.3 % del valor analítico (2.5 % con perfil no gaussiano); unidades.
 - **Corregido:** el estimador `L_div` estaba sesgado hasta +13 % en manchas pequeñas (el factor $1-r^2/R^2$ se aplicaba después de suavizar) y su error estaba subestimado ~4×; la proyección de Helmholtz dejaba divergencia residual con tamaños pares y ruido (modo de Nyquist); los radios de los anillos ahora son el radio medio de sus píxeles.
 - **Matizado en el texto:** los puntos 1 y 2 de la sección 2, la comparación con Löptien de la sección 3 y el error por derivar sobre $\tau=1$.
+
+## 7. Resultados con los datos reales (2026-11-17)
+
+Se corrieron 02 → 03 → 04 sobre las 9 manchas (10 ventanas: 11117 tiene dos fechas; 1674 frames limpios, sin cambios de mancha en el seguimiento). La sección 6 del notebook ajusta 1 de cada 5 frames; los valores son la mediana y la desviación estándar entre frames. Tablas: `data/processed/modelo_zw.csv` y `extension_3d.csv`. Figuras: `docs/figuras/04_perfiles_<id>.png` (una por mancha) y `04_resumen_manchas.png`.
+
+### 7.1 Ajuste de $B_0$, $R$ y $L$
+
+| Mancha | $B_0$ [G] | $R$ [Mm] | $L_{inc}$ [Mm] | $L_{div}$ [Mm] | $L_{inc}/L_{div}$ | $R/L$ | $p$ | $q$ |
+|---|---|---|---|---|---|---|---|---|
+| 11106 (2010-09-16) | 2226 ± 30 | 5.25 ± 0.13 | 2.82 ± 0.10 | 2.88 ± 0.07 | 0.99 | 1.86 | 2.18 | 1.04 |
+| 11117 (2010-10-27) | 1886 ± 66 | 5.91 ± 0.12 | 3.16 ± 0.09 | 3.20 ± 0.12 | 1.00 | 1.87 | 2.20 | 1.14 |
+| 11117 (2010-10-28) | 1978 ± 34 | 5.91 ± 0.07 | 3.28 ± 0.06 | 3.36 ± 0.11 | 0.98 | 1.80 | 2.15 | 1.24 |
+| 11363 (2011-12-06) | 2085 ± 39 | 12.46 ± 0.14 | 6.96 ± 0.09 | 7.48 ± 0.82 | 0.92 | 1.79 | 2.46 | 1.28 |
+| 11536 (2012-07-31) | 2002 ± 114 | 4.24 ± 0.13 | 3.06 ± 0.18 | 3.05 ± 0.21 | 0.99 | 1.39 | 2.34 | 1.02 |
+| 12526 | 2568 ± 41 | 9.52 ± 0.14 | 4.66 ± 0.13 | 4.21 ± 0.46 | 1.12 | 2.04 | 2.06 | 0.91 |
+| 12574 | 2072 ± 55 | 5.83 ± 0.06 | 3.17 ± 0.14 | 3.26 ± 0.31 | 0.98 | 1.84 | 2.93 | 1.18 |
+| 12600 | 2417 ± 33 | 7.04 ± 0.08 | 3.54 ± 0.11 | 3.45 ± 0.27 | 1.02 | 1.99 | 2.35 | 1.06 |
+| 12664 | 2389 ± 54 | 5.66 ± 0.07 | 2.98 ± 0.11 | 2.99 ± 0.22 | 1.00 | 1.90 | 2.22 | 1.03 |
+| 12670 | 2622 ± 43 | 8.23 ± 0.10 | 4.12 ± 0.07 | 4.18 ± 0.30 | 0.99 | 2.00 | 2.16 | 0.97 |
+
+$p$ es el exponente de $B_z=B_0e^{-(r/R)^p}$ (gaussiana: 2) y $q$ el de $\tan\gamma\propto r^q$ en la umbra (modelo: 1); los calcula `perfiles.diagnostico_forma`.
+
+Respuestas a las preguntas de la sección 4:
+
+1. **$\tan\gamma$ es lineal en la umbra.** $q$ tiene mediana 1.05 (0.91–1.28) y el residuo rms respecto a $r/2L_{inc}$ es 0.01–0.03 en $\tan\gamma$. **Fuera de la umbra no**: en la penumbra el campo se inclina mucho más rápido que el modelo; en el borde de la mancha $\tan\gamma$ medido es 2.3–4.8 y el modelo da 1.1–1.7. El modelo autosimilar gaussiano describe la umbra, no la penumbra.
+2. **$L_{inc}\approx L_{div}$.** El cociente tiene mediana 0.99 y va de 0.92 (11363) a 1.12 (12526). Son dos medidas independientes (pendiente de la inclinación y ley de Gauss en el centro), así que la escala de altura $L$ queda bien determinada.
+3. **$B_z(r)$ es casi gaussiano, algo más plano en el centro.** $p$ tiene mediana 2.21 (2.06–2.46, y 2.93 en 12574); el residuo del ajuste gaussiano es 1.6–4.6 % de $B_0$.
+4. **$R/L$ es casi el mismo en todas: 1.8–2.0** (mediana 1.87; la excepción es 11536, 1.39, la más pequeña y con una polaridad opuesta pegada). Es decir $L\approx R/2$ sin importar el tamaño (R va de 4 a 12 Mm). Es menor que los 3.3–4.4 que pedía la sección 3.
+
+`ajustar_mancha` no falló en ningún frame real (NaN, máscaras irregulares y manchas no redondas incluidas).
+
+### 7.2 Qué implica para la curvatura y la calibración de $n$
+
+Con el $R/L$ medido, $|C|/P_{mag}=(R/L)^2\,|n+2|/8|n|$ vale 0.24–0.52 para $n=-1$ (y lo mismo con signo contrario para la exponencial). La calibración con Löptien (nivel 1, $p_0=1.2\times10^4$ Pa, $B$ de Löptien en la presión) pide $C/P_{mag}=1.3$–$2.4$:
+
+| NOAA | Fecha | $R/L$ (HMI) | $C_{req}/P_{mag}$ | $C/P_{mag}$ con $n=-1$ | $n$ calibrado |
+|---|---|---|---|---|---|
+| 11106 | 2010-09-16 | 1.86 | 1.56 | 0.44 | −0.44 |
+| 11117 | 2010-10-27 | 1.87 | 2.19 | 0.44 | −0.33 |
+| 11117 | 2010-10-28 | 1.80 | 2.44 | 0.41 | −0.29 |
+| 11363 | 2011-12-06 | 1.79 | 1.33 | 0.40 | −0.46 |
+| 11536 | 2012-07-31 | 1.39 | 1.44 | 0.24 | −0.29 |
+
+- **$n$ calibrado = −0.33 (−0.46 a −0.29), con $H_p$ = 350 km.** En esa familia el campo del eje se anula en $z=|n|L\approx1$ Mm sobre la fotosfera: no es creíble.
+- Con una caída lineal ($n=-1$), que ya es el límite razonable, la curvatura del modelo explica solo el **17–30 %** de lo que hace falta para pasar de $z_{press}$ a $z_{div}$.
+- Conclusión provisional: con la atmósfera de juguete, el modelo autosimilar gaussiano con el $R/L$ que mide HMI **no alcanza** para explicar $z_{div}-z_{press}$. O la curvatura real es mayor que la del modelo (la penumbra, donde el campo se inclina mucho más, queda fuera), o el nivel 1 exagera lo que hace falta (sección 3: con $p_0=4\times10^4$ Pa baja a 0.85–1.4). Hay que repetirlo con Maltby antes de afirmarlo.
+- Con $H_p$ = 150 km y $B_0$ de HMI, la presión sola da $Z_W$ = 117–178 km y la curvatura con $n=-1$ suma 19–46 km. Con la calibración ($n=-0.33$, $H_p$ = 350 km) el modelo predice 590–770 km para las cinco manchas del catálogo propio (columna `Z_pred_curvatura`); es una extrapolación de una calibración poco creíble, no una predicción.
+- El $B_0$ del ajuste (1886–2226 G en las de Löptien) queda 5–10 % por debajo del $\langle B\rangle$ umbral de Löptien (2090–2349 G, Hinode), aunque $B_0$ es el máximo y $\langle B\rangle$ un promedio: HMI ve menos campo en la umbra que Hinode. Afecta la pregunta de qué $B$ entra en la presión.
+
+### 7.3 La extensión a 3D sobre los mapas reales
+
+Sección 8 del notebook: los métodos de la sección 2 aplicados al frame central de cada mancha, con $C$ integrada hasta el borde de la penumbra.
+
+| Método | $C/P_{mag}$ en las 10 ventanas |
+|---|---|
+| Capas iguales + Gauss | 0 |
+| Campo potencial | −0.79 a −1.02 |
+| Autosimilar desde el mapa, $n=-1$ | +0.25 a +0.54 (fórmula cerrada: +0.23 a +0.54) |
+| Autosimilar desde el mapa, $n=\infty$ | −0.30 a −0.56 (cerrada: −0.23 a −0.54) |
+
+Sale lo mismo que con la mancha sintética: el resultado lo decide la clausura, no el mapa. La expansión del mapa real coincide con la fórmula gaussiana dentro de ~10 %. El $\mathbf B_h$ que predice el modelo en $z=0$ es 0.84–0.94 del observado dentro de la umbra (0.42 en 11536) y 0.58–0.79 en la penumbra.
+
+### 7.4 Notas de la corrida
+
+- `src/cleaning.py` (de Thomas) necesitó un cambio para correr: `conf_disambig` y `bitmap` de SHARP (enteros con `BZERO=-128`, `BLANK=0`) no se pueden leer con astropy ≥ 7.2 ("cannot convert float NaN to integer"). Se agregó `_mapa_entero`, que los lee sin escalar y aplica `BZERO` a mano. Hay que avisarle.
+- 02 y 03 se corrieron llamando `cleaning.clean_spot` y `analysis.analyse_spot` en paralelo (un proceso por mancha, ~3 min cada paso) con los parámetros de la celda 2 del notebook 03; los notebooks 02 y 03 no se modificaron.

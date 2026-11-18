@@ -154,6 +154,41 @@ def ajustar_mancha(Bx, By, Bz, dx, mascara=None, centro=None, r_ajuste=None, r_u
                 r_umbra=float(r_umbra), r=r, Bz=bz, sBz=sbz, Br=br, sBr=sbr, n_px=cnt)
 
 
+def diagnostico_forma(a):
+    """¿Se parece la mancha al modelo? Tres números sobre los perfiles de `ajustar_mancha`.
+
+    - `p_forma`: exponente de B_z = B0 exp(-(r/R)^p). p = 2 es la gaussiana; p > 2 es un
+      perfil más plano en el centro y de borde más abrupto.
+    - `rms_gauss`: residuo rms del ajuste gaussiano (p = 2) dividido por B0.
+    - `exp_inc`: exponente de tan γ = a r^q en la umbra. El modelo predice q = 1.
+    - `tan_borde`: tan γ medido en el borde de la umbra (el modelo da r_umbra/2L).
+    - `rms_inc`: residuo rms de tan γ respecto a r/(2 L_inc), en la umbra.
+
+    Returns
+    -------
+    dict con esos cinco números (NaN si el ajuste no converge).
+    """
+    r, bz, br = a['r'], a['Bz'], a['Br']
+    out = dict(p_forma=np.nan, rms_gauss=np.nan, exp_inc=np.nan, tan_borde=np.nan, rms_inc=np.nan)
+    out['rms_gauss'] = float(np.sqrt(np.mean((bz - a['B0'] * np.exp(-(r / a['R']) ** 2)) ** 2)) / a['B0'])
+    try:
+        f = lambda rr, B0, R, p: B0 * np.exp(-(rr / R) ** p)
+        (_, _, p), _ = optimize.curve_fit(f, r, bz, p0=[a['B0'], a['R'], 2.0],
+                                          bounds=([0, 0, 0.3], [np.inf, np.inf, 10]))
+        out['p_forma'] = float(p)
+    except (RuntimeError, ValueError):
+        pass
+    um = (r <= a['r_umbra']) & (r > 0) & (bz > 0)
+    t = br[um] / bz[um]
+    if um.sum() >= 3:
+        out['tan_borde'] = float(t[-1])
+        out['rms_inc'] = float(np.sqrt(np.mean((t - r[um] / (2 * a['L_inc'])) ** 2)))
+        pos = t > 0
+        if pos.sum() >= 3:
+            out['exp_inc'] = float(np.polyfit(np.log(r[um][pos]), np.log(t[pos]), 1)[0])
+    return out
+
+
 def residuo_inclinacion(Bx, By, Bz, dx, L, centro):
     """Mapa B_h observado menos el que predice el modelo, B_h = x B_z/(2L) [G].
 
@@ -181,5 +216,6 @@ def ajustar_serie(spot_id, raiz=None, cada=1, verbose=False):
             if verbose:
                 print(f'{spot_id} {sello}: {exc!r}')
             continue
-        filas.append({'sello': sello, **{k: v for k, v in a.items() if np.isscalar(v)}})
+        filas.append({'sello': sello, **{k: v for k, v in a.items() if np.isscalar(v)},
+                      **diagnostico_forma(a)})
     return pd.DataFrame(filas)
