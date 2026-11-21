@@ -110,6 +110,14 @@ $$
 3. **De presiones a $Z_W$.** Con atmósferas modelo de umbra y de Sol tranquilo (Maltby et al. 1986) se busca la profundidad a la que el balance horizontal se cumple, con presión sola y con presión + curvatura.
 4. **Validación y predicción.** Se compara con $z_{press}$ y $z_{div}$ de Löptien en las 5 fechas comunes, se calibra el único parámetro libre del modelo, y se predice $Z_W$ con su incertidumbre para las 5 manchas del catálogo.
 
+### 5. Simulación — `notebooks/04_simulacion.ipynb`
+
+Modelo autosimilar (S2), extensión del mapa de una capa a 3D con $\nabla\cdot\mathbf B=0$, ajuste de $B_0$, $R$, $L$ y paso a $Z_W$ con y sin curvatura (S5, S6). Corre sin datos con una mancha sintética; la última sección usa `data/processed/` si existe. Deducciones, resultados y pendientes en [`docs/simulacion.md`](docs/simulacion.md).
+
+```bash
+python tests_simulacion/test_simulacion.py
+```
+
 ## Estructura
 
 ```
@@ -122,7 +130,13 @@ src/
   segmentation.py         detección y seguimiento de una mancha
   analysis.py             máscaras en CEA, métricas, índice de la muestra
   report.py               figuras y sumary.html
-notebooks/                01_data_downloading, 02_data_cleaning, 03_data_analisis
+  autosimilar.py          S2: campo autosimilar, L desde la inclinación, integral de curvatura C
+  extrapolacion.py        del mapa de una capa a un cubo 3D sin divergencia; C sobre un cubo
+  perfiles.py             perfiles radiales y ajuste de B0, R, L sobre data/processed
+  modelo_wilson.py        S5/S6: Z_W con presión y curvatura, calibración de n
+notebooks/                01_data_downloading, 02_data_cleaning, 03_data_analisis, 04_simulacion
+docs/                     simulacion.md y figuras del notebook 04
+tests_simulacion/         pruebas de la simulación
 data/catalog/             reportes SRS de las manchas del catálogo propio
 data/raw/                 descargas (no se versionan)
 data/interim/             datos limpios de 02 (no se versionan)

@@ -139,6 +139,25 @@ def crop_cea_to_hpc(cea_map, hpc_map, margin_px=20):
     return x0, x1, y0, y1
 
 
+def _mapa_entero(path):
+    """Lee un segmento entero de SHARP (conf_disambig, bitmap) como Map.
+
+    Estos archivos traen BITPIX = 8, BZERO = -128 y BLANK = 0. Con astropy >= 7.2 el
+    escalado automático intenta poner NaN en un arreglo entero y falla ("cannot convert
+    float NaN to integer"), así que sunpy no encuentra ningún HDU. Aquí se lee sin
+    escalar y se aplica BZERO a mano.
+    """
+    import sunpy.map
+
+    with fits.open(path, do_not_scale_image_data=True) as hdul:
+        hdu = hdul[-1]
+        data = (hdu.data.astype(np.int16) * int(hdu.header.get('BSCALE', 1))
+                + int(hdu.header.get('BZERO', 0)))
+        meta = {k: v for k, v in hdu.header.items()
+                if k and k not in ('COMMENT', 'HISTORY', 'BLANK', 'BZERO', 'BSCALE')}
+    return sunpy.map.Map(data, meta)
+
+
 def _crop(smap, box):
     x0, x1, y0, y1 = box
     return smap.submap([x0, y0] * u.pix, top_right=[x1, y1] * u.pix)
@@ -183,14 +202,14 @@ def clean_frame(row):
     # casi todo el recorte (la ambigüedad se resuelve con un método más simple), y ponerlo en
     # NaN borraría el exterior de la mancha de los perfiles radiales. Se guarda como producto
     # y 03 lo usa donde importa (umbra y penumbra, donde vale 90).
-    conf_map = _crop(sunpy.map.Map(str(row['sharp_conf_disambig'])), box)
+    conf_map = _crop(_mapa_entero(str(row['sharp_conf_disambig'])), box)
     bad = ~(np.asarray(conf_map.data) >= config.CONF_DISAMBIG_MIN)
     for name, seg, sign in (('Bx', 'Bp', 1), ('By', 'Bt', -1), ('Bz', 'Br', 1)):
         m = _crop(sunpy.map.Map(str(row[f'sharp_{seg}'])), box)
         out[name] = _with_meta(m, sign * np.array(m.data, dtype=float), bunit='G',
                                vecconv='Bx=Bp,By=-Bt,Bz=Br')
     out['conf_disambig'] = conf_map
-    out['bitmap'] = _crop(sunpy.map.Map(str(row['sharp_bitmap'])), box)
+    out['bitmap'] = _crop(_mapa_entero(str(row['sharp_bitmap'])), box)
 
     # Diagnósticos para frames.csv y las gráficas de control de 02.
     quiet = (ic_norm > config.PENUMBRA_FRAC) & (np.abs(b) < 100) if b.shape == ic_norm.shape \
